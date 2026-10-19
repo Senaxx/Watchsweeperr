@@ -115,7 +115,7 @@ server/        Express API, scan logic, service clients, sign-in
   app.ts             Routes and removal flow
   syncEngine.ts      Turns Seerr requests and Tautulli history into suggestions
   apiClients.ts      Seerr, Tautulli, Radarr and Sonarr calls
-  automaticRemoval.ts  Per-user automatic removal rules
+  removal.ts         Removing media (manual and automatic) and per-user rules
   auth.ts            Account, password hashing and session cookies
   settingsStore.ts / stateStore.ts  JSON files in the data folder
 src/           React interface
