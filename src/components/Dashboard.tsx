@@ -39,7 +39,6 @@ export function Dashboard(props: DashboardProps) {
   return (
     <>
       <section className="page-head reveal">
-        <div><p>{t('dashboardIntro')}</p></div>
         <div className="head-actions">
           <div className="sync-meta">
             <span>{t('lastScan')}</span>
