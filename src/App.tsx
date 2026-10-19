@@ -48,26 +48,29 @@ export function App() {
     document.title = 'WatchSweeperr';
   }, [language]);
 
-  async function load() {
+  async function load(): Promise<boolean> {
     try {
       const [nextOverview, nextSettings] = await Promise.all([api<Overview>('/api/overview'), api<PublicSettings>('/api/settings')]);
       setOverview(nextOverview);
       setSettings(nextSettings);
       setDrafts(draftsFrom(nextSettings));
+      return true;
     } catch (error) {
       fail(error, 'loadError');
+      return false;
     }
   }
 
   async function checkAuth() {
+    // The server may be restarting (for example during an update); try again instead of loading forever.
+    const retry = () => window.setTimeout(() => void checkAuth(), 3000);
     try {
       const status = await api<AuthStatus>('/api/auth/status');
       setAuth(status);
-      if (status.configured && status.authenticated) await load();
+      if (status.configured && status.authenticated && !(await load())) retry();
     } catch (error) {
       fail(error, 'loadError');
-      // The server may be restarting (for example during an update); try again instead of loading forever.
-      window.setTimeout(() => void checkAuth(), 3000);
+      retry();
     }
   }
 
@@ -237,10 +240,7 @@ export function App() {
         key={auth.configured ? 'login' : 'setup'}
         mode={auth.configured ? 'login' : 'setup'}
         language={language}
-        onSignedIn={(username) => {
-          setAuth({ ...auth, configured: true, authenticated: true, username });
-          void load();
-        }}
+        onSignedIn={() => void checkAuth()}
       />
     );
   }

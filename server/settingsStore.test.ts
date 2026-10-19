@@ -136,6 +136,22 @@ describe('inloggen', () => {
     expect(Date.now() - started).toBeGreaterThanOrEqual(2900);
   });
 
+  it('laat een aanval vanaf één apparaat het inloggen vanaf een ander apparaat niet vertragen', async () => {
+    const { createApp } = await import('./app.js');
+    const { getAccount, testing } = await import('./auth.js');
+    await request(createApp()).post('/api/auth/setup').send(credentials);
+    const account = await getAccount();
+
+    const attack = Promise.all([1, 2, 3].map(() => testing.checkPassword('10.0.0.66', account, 'fout-wachtwoord')));
+    const started = Date.now();
+    await expect(testing.checkPassword('10.0.0.5', account, credentials.password)).resolves.toBe(true);
+    expect(Date.now() - started).toBeLessThan(900);
+
+    await expect(attack).resolves.toEqual([false, false, false]);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(testing.passwordQueues.size).toBe(0);
+  });
+
   it('staat maar één account toe en weigert korte wachtwoorden', async () => {
     const { createApp } = await import('./app.js');
     const app = createApp();

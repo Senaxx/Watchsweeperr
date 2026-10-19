@@ -71,17 +71,20 @@ const sameUser = (a: string, b: string) => a.toLocaleLowerCase('nl-NL') === b.to
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const PUBLIC_API = new Set(['/api/health', '/api/auth/status', '/api/auth/setup', '/api/auth/login', '/api/auth/logout']);
 
-let passwordQueue: Promise<unknown> = Promise.resolve();
+const passwordQueues = new Map<string, Promise<unknown>>();
 
-// Checks passwords one at a time, so the delay after a wrong one also limits guesses sent in parallel.
-function oneAtATime<T>(task: () => Promise<T>): Promise<T> {
-  const run = passwordQueue.then(task);
-  passwordQueue = run.catch(() => undefined);
+// Checks passwords one at a time per device: the delay after a wrong one also limits guesses sent in parallel,
+// while a burst from one device cannot make sign-ins from other devices wait.
+function oneAtATime<T>(client: string, task: () => Promise<T>): Promise<T> {
+  const run = (passwordQueues.get(client) ?? Promise.resolve()).then(task);
+  const settled = run.catch(() => undefined);
+  passwordQueues.set(client, settled);
+  void settled.then(() => { if (passwordQueues.get(client) === settled) passwordQueues.delete(client); });
   return run;
 }
 
-async function checkPassword(account: Account | undefined, password: string, username = account?.username ?? ''): Promise<boolean> {
-  return oneAtATime(async () => {
+async function checkPassword(client: string, account: Account | undefined, password: string, username = account?.username ?? ''): Promise<boolean> {
+  return oneAtATime(client, async () => {
     if (account && sameUser(account.username, username.trim()) && await passwordMatches(account, password)) return true;
     await wait(1000);
     return false;
@@ -124,7 +127,7 @@ export function authRoutes(): express.Router {
     try {
       const { username, password } = z.object({ username: z.string(), password: z.string() }).parse(request.body);
       const account = await getAccount();
-      const valid = await checkPassword(account, password, username);
+      const valid = await checkPassword(request.ip ?? '', account, password, username);
       if (!account || !valid) return response.status(401).json({ error: 'Onjuiste gebruikersnaam of wachtwoord.' });
       response.set('Set-Cookie', sessionCookie(account)).json({ username: account.username });
     } catch (error) { next(error); }
@@ -139,7 +142,7 @@ export function authRoutes(): express.Router {
       const input = z.object({ currentPassword: z.string(), username: z.string(), newPassword: z.string() }).parse(request.body);
       const account = await getAccount();
       if (!account) return response.status(409).json({ error: 'Er is nog geen account.' });
-      if (!(await checkPassword(account, input.currentPassword))) {
+      if (!(await checkPassword(request.ip ?? '', account, input.currentPassword))) {
         return response.status(403).json({ error: 'Huidig wachtwoord klopt niet.' });
       }
       const { username, password } = credentialsSchema.parse({ username: input.username, password: input.newPassword || input.currentPassword });
@@ -150,3 +153,5 @@ export function authRoutes(): express.Router {
 
   return router;
 }
+
+export const testing = { checkPassword, passwordQueues };
