@@ -62,6 +62,10 @@ export function formatBytes(value: number | undefined, language: Language): stri
   return `${new Intl.NumberFormat(locale(language), { maximumFractionDigits: unit >= 4 ? 1 : 0 }).format(size)} ${units[unit]}`;
 }
 
+export function totalSize(items: Suggestion[]): number {
+  return items.reduce((sum, item) => sum + (item.fileSizeBytes ?? 0), 0);
+}
+
 export function formatNumber(value: number | undefined, language: Language): string {
   return value === undefined ? '—' : new Intl.NumberFormat(locale(language)).format(value);
 }

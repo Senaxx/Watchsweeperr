@@ -1,7 +1,7 @@
 import { Archive, Check, ChevronRight, ExternalLink, Eye, EyeOff, Film, Gauge, RefreshCw, Search, Server, Tag, Trash2, Tv } from 'lucide-react';
 import { type Dispatch, type ReactNode, type SetStateAction, useMemo, useState } from 'react';
 import type { Language, Overview, ServerStatistics, Suggestion, SuggestionStatus } from '../../shared';
-import { formatBytes, formatDate, formatDateTime, formatNumber, formatRelative, statusLabel, suggestionGenres } from '../format';
+import { formatBytes, formatDate, formatDateTime, formatNumber, formatRelative, statusLabel, suggestionGenres, totalSize } from '../format';
 import { serverText, translator } from '../i18n';
 
 type SortOrder = 'requested-desc' | 'requested-asc' | 'title' | 'requester' | 'genre' | 'progress-desc';
@@ -91,8 +91,8 @@ export function Dashboard(props: DashboardProps) {
       </section>
 
       <div className="table-stack reveal delay-3">
-        <StatusTable {...shared} title={t('notWatched')} description={t('noCompletedView')} status="waiting" items={suggestions.filter((item) => item.status === 'waiting')} />
         <StatusTable {...shared} title={t('readyForReview')} description={t('fullyWatchedOrExpired')} status="ready" items={suggestions.filter((item) => item.status === 'ready')} />
+        <StatusTable {...shared} title={t('notWatched')} description={t('noCompletedView')} status="waiting" items={suggestions.filter((item) => item.status === 'waiting')} />
         <StatusTable {...shared} title={t('beingWatched')} description={t('progressIncomplete')} status="partial" items={suggestions.filter((item) => item.status === 'partial')} />
       </div>
     </>
@@ -179,7 +179,7 @@ function StatusTable({ title, description, status, items, onRemove, onDismiss, s
           <span className={`table-status-mark ${status}`}><i /></span>
           <div>
             <h2>{title}<b>{items.length}</b></h2>
-            <p>{description}</p>
+            <p>{description}{totalSize(items) > 0 && ` · ${formatBytes(totalSize(items), language)}`}</p>
           </div>
         </div>
         <div className="table-head-actions">
@@ -269,7 +269,7 @@ function SuggestionRow({ item, onRemove, onDismiss, selected, onToggle, seerrBas
       <div className="progress-cell">
         <div>
           <span>{item.mediaKind === 'movie' ? `${item.progress}%` : `${item.watchedItems}/${item.totalItems}`}</span>
-          <small>{serverText(item.reason, language)}</small>
+          <small title={serverText(item.reason, language)}>{serverText(item.reason, language)}</small>
         </div>
         <div className="progress-track"><span style={{ width: `${item.progress}%` }} /></div>
       </div>

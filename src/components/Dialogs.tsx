@@ -1,7 +1,7 @@
 import { Archive, Trash2, X } from 'lucide-react';
 import type { ReactNode } from 'react';
 import type { Language, Suggestion } from '../../shared';
-import { formatBytes, formatDate, formatDateTime, statusLabel } from '../format';
+import { formatBytes, formatDate, formatDateTime, statusLabel, totalSize } from '../format';
 import { serverText, translator } from '../i18n';
 
 interface DialogProps {
@@ -65,7 +65,7 @@ export function BulkRemoveDialog({ suggestions, demoMode, busy, close, confirm, 
   return (
     <Modal close={close}>
       <div className="eyebrow">{t('bulkReview')}</div>
-      <h2>{t('removeMultiple', { count: suggestions.length })}</h2>
+      <h2>{t('removeMultiple', { count: suggestions.length })}{totalSize(suggestions) > 0 && ` · ${t('frees', { size: formatBytes(totalSize(suggestions), language) })}`}</h2>
       <p className="modal-subtitle">{t('bulkRemovalDescription')}</p>
       <div className="bulk-review-list">
         {suggestions.map((item) => (
