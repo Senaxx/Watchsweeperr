@@ -192,6 +192,23 @@ function watchedAfterRequestAt(items: any[], requestedAt: string, threshold: num
   return watchedAt.length ? new Date(Math.max(...watchedAt)).toISOString() : undefined;
 }
 
+// The status rules shared by movies and seasons: fully watched beats retention, retention beats progress.
+function outcome(
+  watchedReady: boolean,
+  started: boolean,
+  progressText: string,
+  expiredReason: string | undefined,
+  method: NonNullable<Suggestion['matchMethod']>
+): Pick<Suggestion, 'status' | 'reason' | 'matchConfidence' | 'matchMethod' | 'suggestionBasis'> {
+  return {
+    status: watchedReady ? 'ready' : started ? 'partial' : 'waiting',
+    reason: watchedReady ? progressText : expiredReason ?? progressText,
+    matchConfidence: method === 'external-id' ? 'high' : method === 'title-year' ? 'medium' : 'low',
+    matchMethod: method,
+    suggestionBasis: watchedReady ? 'watched' : expiredReason ? 'retention' : undefined
+  };
+}
+
 export interface ScanResult {
   suggestions: Suggestion[];
   serverStatistics: ServerStatistics;
@@ -249,7 +266,10 @@ export async function scanRequests(settings: AppSettings): Promise<ScanResult> {
     const requester = requesterName(request);
     const requestedAt = toDate(request.createdAt);
     const availableSince = retentionStart(request.createdAt, request.media?.mediaAddedAt);
-    const isRetentionExpired = retentionExpired(availableSince, settings.retentionMonths, new Date(), settings.retentionDays);
+    const expiredReason = retentionExpired(availableSince, settings.retentionMonths, new Date(), settings.retentionDays)
+      ? retentionReason(settings.retentionMonths, settings.retentionDays)
+      : undefined;
+    const shared = { requestId: Number(request.id), requestIds, title, posterUrl: cover, year, requester, requestedAt, availableSince, tmdbId, genres, genreIds: genreIdsForMedia };
 
     if (mediaType === 'movie') {
       if (!movieIsReleased(details)) continue;
@@ -260,14 +280,12 @@ export async function scanRequests(settings: AppSettings): Promise<ScanResult> {
       const progress = Math.round(percent(best));
       const watchedReady = progress >= settings.watchThreshold;
       const completedAfterRequestAt = watchedAfterRequestAt(matches, requestedAt, settings.watchThreshold);
+      const progressText = watchedReady ? `${progress}% bekeken door aanvrager` : progress > 0 ? `${progress}% bekeken` : 'Nog niet bekeken';
       suggestions.push({
-        id: `request-${request.id}-movie`, requestId: Number(request.id), requestIds, mediaKind: 'movie', title, posterUrl: cover, subtitle: 'Film', year,
-        requester, requestedAt, availableSince, lastWatchedAt: historyDate(best?.date), watchedAfterRequestAt: completedAfterRequestAt,
+        ...shared, id: `request-${request.id}-movie`, mediaKind: 'movie', subtitle: 'Film',
+        lastWatchedAt: historyDate(best?.date), watchedAfterRequestAt: completedAfterRequestAt,
         progress, watchedItems: watchedReady ? 1 : 0, totalItems: 1,
-        status: watchedReady ? 'ready' : progress > 0 ? 'partial' : 'waiting',
-        reason: watchedReady ? `${progress}% bekeken door aanvrager` : isRetentionExpired ? retentionReason(settings.retentionMonths, settings.retentionDays) : progress > 0 ? `${progress}% bekeken` : 'Nog niet bekeken',
-        matchConfidence: matched.method === 'external-id' ? 'high' : matched.method === 'title-year' ? 'medium' : 'low', matchMethod: matched.method,
-        suggestionBasis: watchedReady ? 'watched' : isRetentionExpired ? 'retention' : undefined, tmdbId, genres, genreIds: genreIdsForMedia,
+        ...outcome(watchedReady, progress > 0, progressText, expiredReason, matched.method),
         fileSizeBytes: downloadAvailability.movieFileSizes.get(tmdbId)
       });
       continue;
@@ -304,16 +322,13 @@ export async function scanRequests(settings: AppSettings): Promise<ScanResult> {
       const completedAfterRequestAt = totalItems > 0 && watchedAfterRequestEpisodes.size >= totalItems
         ? [...watchedAfterRequestEpisodes.values()].sort().at(-1)
         : undefined;
+      const progressText = totalItems ? `${watchedItems} van ${totalItems} afleveringen bekeken` : 'Aantal afleveringen onbekend';
       suggestions.push({
-        id: `request-${request.id}-season-${seasonNumber}`, requestId: Number(request.id), requestIds, mediaKind: 'season', title, posterUrl: cover,
-        subtitle: `Seizoen ${seasonNumber}`, year, requester, requestedAt, availableSince,
-        lastWatchedAt: historyDate(last?.date),
-        watchedAfterRequestAt: completedAfterRequestAt,
-        progress, watchedItems, totalItems, status: watchedReady ? 'ready' : watchedItems ? 'partial' : 'waiting',
-        reason: watchedReady ? `${watchedItems} van ${totalItems} afleveringen bekeken` : isRetentionExpired ? retentionReason(settings.retentionMonths, settings.retentionDays) : totalItems ? `${watchedItems} van ${totalItems} afleveringen bekeken` : 'Aantal afleveringen onbekend',
-        matchConfidence: matched.method === 'external-id' ? 'high' : matched.method === 'title-year' ? 'medium' : 'low', matchMethod: matched.method,
-        suggestionBasis: watchedReady ? 'watched' : isRetentionExpired ? 'retention' : undefined,
-        tmdbId, tvdbId, seasonNumber, requestedSeasonNumbers, genres, genreIds: genreIdsForMedia,
+        ...shared, id: `request-${request.id}-season-${seasonNumber}`, mediaKind: 'season', subtitle: `Seizoen ${seasonNumber}`,
+        lastWatchedAt: historyDate(last?.date), watchedAfterRequestAt: completedAfterRequestAt,
+        progress, watchedItems, totalItems,
+        ...outcome(watchedReady, watchedItems > 0, progressText, expiredReason, matched.method),
+        tvdbId, seasonNumber, requestedSeasonNumbers,
         fileSizeBytes: downloadAvailability.seasonFileSizes.get(seasonDownloadKey(tvdbId, seasonNumber))
       });
     }

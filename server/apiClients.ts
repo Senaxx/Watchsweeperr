@@ -244,23 +244,13 @@ export async function getDownloadAvailability(settings: AppSettings): Promise<Do
 }
 
 export async function deleteSeerrRequest(service: ServiceConfig, requestId: number): Promise<string> {
-  const url = apiUrl(service, `/api/v1/request/${requestId}`);
-  let response: Response;
   try {
-    response = await fetch(url, {
-      method: 'DELETE',
-      headers: jsonHeaders(service),
-      signal: AbortSignal.timeout(TIMEOUT_MS)
-    });
+    await jsonRequest<unknown>(apiUrl(service, `/api/v1/request/${requestId}`), { method: 'DELETE', headers: jsonHeaders(service) }, { service: 'Seerr', action: 'verzoek verwijderen' });
+    return 'Seerr-verzoek verwijderd.';
   } catch (error) {
-    throw new ServiceApiError('Seerr', 'verzoek verwijderen', undefined, error instanceof Error ? error.message : 'Netwerkfout');
+    if (error instanceof ServiceApiError && error.upstreamStatus === 404) return 'Seerr-verzoek was al verwijderd.';
+    throw error;
   }
-  if (response.status === 404) return 'Seerr-verzoek was al verwijderd.';
-  if (!response.ok) {
-    const text = await response.text();
-    throw new ServiceApiError('Seerr', 'verzoek verwijderen', response.status, text.slice(0, 220));
-  }
-  return 'Seerr-verzoek verwijderd.';
 }
 
 export async function removeMedia(settings: AppSettings, suggestion: Suggestion): Promise<string> {

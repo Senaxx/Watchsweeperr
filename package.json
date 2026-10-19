@@ -6,7 +6,6 @@
   "scripts": {
     "dev": "tsx watch --clear-screen=false server/index.ts",
     "build": "tsc --noEmit && vite build",
-    "start": "cross-env NODE_ENV=production tsx server/index.ts",
     "test": "vitest run",
     "check": "npm run test && npm run build"
   },
@@ -22,7 +21,6 @@
     "@types/react-dom": "^19.1.7",
     "@types/supertest": "^6.0.3",
     "@vitejs/plugin-react": "^5.0.2",
-    "cross-env": "^10.0.0",
     "lucide-react": "^0.468.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",

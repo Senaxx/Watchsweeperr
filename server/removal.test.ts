@@ -1,6 +1,6 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AppSettings, AppState, Suggestion } from '../shared.js';
-import { automaticRemovalCandidates, runAutomaticRemovals } from './automaticRemoval.js';
+import { automaticRemovalCandidates, groupSuggestionsForRemoval, runAutomaticRemovals } from './removal.js';
 
 const settings: AppSettings = {
   language: 'nl',
@@ -74,30 +74,71 @@ describe('automatische verwijdering', () => {
 
   it('verwijdert een compleet serieverzoek als één groep', async () => {
     const state: AppState = { suggestions: [season(1), season(2)], ignoredSuggestionIds: [], activity: [] };
-    const removeMedia = vi.fn(async () => 'film');
-    const removeSeasonGroup = vi.fn(async () => 'seizoenen verwijderd');
-    const deleteSeerrRequest = vi.fn(async () => 'Seerr-verzoek verwijderd');
+    const calls = fakeServices({ series: [{ id: 8, tvdbId: 600, seasons: [1, 2].map((seasonNumber) => ({ seasonNumber, statistics: { episodeFileCount: 10 } })) }] });
 
-    const result = await runAutomaticRemovals(settings, state, { removeMedia, removeSeasonGroup, deleteSeerrRequest }, new Date('2026-09-10T00:00:00Z'));
+    const result = await runAutomaticRemovals(settings, state, new Date('2026-09-10T00:00:00Z'));
 
     expect(result).toEqual({ removed: 1, failed: 0 });
-    expect(removeMedia).not.toHaveBeenCalled();
-    expect(removeSeasonGroup).toHaveBeenCalledWith(settings, expect.arrayContaining([expect.objectContaining({ seasonNumber: 1 }), expect.objectContaining({ seasonNumber: 2 })]));
-    expect(deleteSeerrRequest).toHaveBeenCalledTimes(1);
+    expect(calls.filter((call) => call.method === 'DELETE').map((call) => call.path)).toEqual(['/api/v3/series/8', '/api/v1/request/20']);
     expect(state.suggestions.every((item) => item.status === 'removed')).toBe(true);
+    expect(state.activity[0]?.title).toBe('Testserie automatisch verwijderd');
   });
 
   it('verwijdert alle samengevoegde Seerr-verzoeken', async () => {
-    const duplicateMovie = { ...movie, requestIds: [12, 13] };
-    const state: AppState = { suggestions: [duplicateMovie], ignoredSuggestionIds: [], activity: [] };
-    const removeMedia = vi.fn(async () => 'film verwijderd');
-    const removeSeasonGroup = vi.fn(async () => 'seizoenen verwijderd');
-    const deleteSeerrRequest = vi.fn(async (_service, requestId: number) => `verzoek ${requestId} verwijderd`);
+    const state: AppState = { suggestions: [{ ...movie, requestIds: [12, 13] }], ignoredSuggestionIds: [], activity: [] };
+    const calls = fakeServices({ movies: [{ id: 5, tmdbId: 123 }] });
 
-    const result = await runAutomaticRemovals(settings, state, { removeMedia, removeSeasonGroup, deleteSeerrRequest }, new Date('2026-09-10T00:00:00Z'));
+    const result = await runAutomaticRemovals(settings, state, new Date('2026-09-10T00:00:00Z'));
 
     expect(result).toEqual({ removed: 1, failed: 0 });
-    expect(deleteSeerrRequest.mock.calls.map((call) => call[1])).toEqual([12, 13]);
+    expect(calls.filter((call) => call.method === 'DELETE').map((call) => call.path)).toEqual(['/api/v3/movie/5', '/api/v1/request/12', '/api/v1/request/13']);
     expect(state.suggestions[0]?.status).toBe('removed');
   });
+
+  it('verwijdert een genegeerde titel nooit automatisch', async () => {
+    const state: AppState = { suggestions: [movie], ignoredSuggestionIds: [movie.id], activity: [] };
+    const calls = fakeServices({ movies: [{ id: 5, tmdbId: 123 }] });
+
+    expect(await runAutomaticRemovals(settings, state, new Date('2026-09-10T00:00:00Z'))).toEqual({ removed: 0, failed: 0 });
+    expect(calls).toEqual([]);
+  });
+
+  it('logt een mislukte automatische verwijdering en probeert het later opnieuw', async () => {
+    const state: AppState = { suggestions: [movie], ignoredSuggestionIds: [], activity: [] };
+    fakeServices({ movies: [{ id: 5, tmdbId: 123 }], failMovieDelete: true });
+
+    const result = await runAutomaticRemovals(settings, state, new Date('2026-09-10T00:00:00Z'));
+
+    expect(result).toEqual({ removed: 0, failed: 1 });
+    expect(state.suggestions[0]?.status).toBe('ready');
+    expect(state.activity[0]).toMatchObject({ title: 'Automatisch verwijderen mislukt: Testfilm', outcome: 'error' });
+  });
 });
+
+describe('groeperen voor verwijderen', () => {
+  it('groepeert seizoenen van dezelfde serie voor veilig bulkverwijderen', () => {
+    const groups = groupSuggestionsForRemoval([
+      { ...movie, id: 'movie-1' },
+      { ...season(1), id: 'season-1', tvdbId: 99 },
+      { ...season(2), id: 'season-2', tvdbId: 99 }
+    ]);
+    expect(groups.map((group) => group.map((item) => item.id))).toEqual([['movie-1'], ['season-1', 'season-2']]);
+  });
+});
+
+afterEach(() => vi.unstubAllGlobals());
+
+// Fake Radarr, Sonarr and Seerr: answers lookups with the given items, records every call.
+function fakeServices({ movies = [], series = [], failMovieDelete = false }: { movies?: unknown[]; series?: unknown[]; failMovieDelete?: boolean }) {
+  const calls: { method: string; path: string }[] = [];
+  vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+    const url = new URL(String(input));
+    const method = init?.method ?? 'GET';
+    calls.push({ method, path: url.pathname });
+    if (method === 'GET' && url.pathname === '/api/v3/movie') return Response.json(movies);
+    if (method === 'GET' && url.pathname === '/api/v3/series') return Response.json(series);
+    if (failMovieDelete && method === 'DELETE' && url.pathname.startsWith('/api/v3/movie/')) return new Response('kapot', { status: 500 });
+    return new Response(null, { status: 200 });
+  }));
+  return calls;
+}

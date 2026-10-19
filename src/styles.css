@@ -186,6 +186,7 @@ input:focus-visible {
   width: 6px;
   height: 6px;
   border-radius: 50%;
+  background: #3b403a;
 }
 .service-mini div {
   display: grid;
@@ -200,9 +201,6 @@ input:focus-visible {
   color: #828282;
   font-size: 12px;
   line-height: 16px;
-}
-.connection-dot {
-  background: #3b403a;
 }
 .connection-dot.online {
   background: #63cc78;

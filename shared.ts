@@ -64,8 +64,6 @@ export interface Suggestion {
   totalItems: number;
   status: SuggestionStatus;
   reason: string;
-  statusBeforeDismiss?: 'ready' | 'partial' | 'waiting';
-  reasonBeforeDismiss?: string;
   matchConfidence: 'high' | 'medium' | 'low';
   matchMethod?: 'external-id' | 'title-year' | 'none';
   suggestionBasis?: 'watched' | 'retention';

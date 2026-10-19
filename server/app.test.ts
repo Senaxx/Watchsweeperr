@@ -2,6 +2,7 @@ import request from 'supertest';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AppState, Suggestion } from '../shared.js';
 import { createApp, testing } from './app.js';
+import { withIgnored } from './removal.js';
 
 const suggestion: Suggestion = {
   id: 'request-12-movie', requestId: 12, mediaKind: 'movie', title: 'Testfilm', subtitle: 'Film', requester: 'Tony',
@@ -39,17 +40,10 @@ describe('genegeerde voorstellen', () => {
     expect(testing.canManuallyRemove({ ...suggestion, status: 'dismissed' })).toBe(false);
   });
 
-  it('blijven na een nieuwe scan genegeerd', () => {
-    const [result] = testing.applyIgnoredSuggestions([suggestion], [suggestion.id]);
-    expect(result.status).toBe('dismissed');
-    expect(result.reason).toBe('Handmatig genegeerd');
-    expect(result.statusBeforeDismiss).toBe('waiting');
-    expect(result.reasonBeforeDismiss).toBe('Nog niet bekeken');
-  });
-
-  it('laat niet-genegeerde voorstellen ongewijzigd', () => {
-    const [result] = testing.applyIgnoredSuggestions([suggestion], []);
-    expect(result.status).toBe('waiting');
+  it('toont genegeerde titels als genegeerd en laat de rest ongewijzigd', () => {
+    const state: AppState = { suggestions: [suggestion, { ...suggestion, id: 'other' }], ignoredSuggestionIds: [suggestion.id], activity: [] };
+    expect(withIgnored(state).map((item) => item.status)).toEqual(['dismissed', 'waiting']);
+    expect(state.suggestions[0].status).toBe('waiting');
   });
 
   it('filtert uitgesloten aanvragers hoofdletterongevoelig', () => {
@@ -100,25 +94,12 @@ describe('genegeerde voorstellen', () => {
     expect(testing.filterRecentRequests([lateArrival], 3, 5, now)).toEqual([]);
   });
 
-  it('groepeert seizoenen van dezelfde serie voor veilig bulkverwijderen', () => {
-    const groups = testing.groupSuggestionsForRemoval([
-      { ...suggestion, id: 'movie-1', status: 'ready' },
-      { ...suggestion, id: 'season-1', mediaKind: 'season', tvdbId: 99, seasonNumber: 1, status: 'ready' },
-      { ...suggestion, id: 'season-2', mediaKind: 'season', tvdbId: 99, seasonNumber: 2, status: 'ready' }
-    ]);
-    expect(groups.map((group) => group.map((item) => item.id))).toEqual([['movie-1'], ['season-1', 'season-2']]);
-  });
-
-  it('herstelt genegeerde titel met vorige status en reden', () => {
-    const state: AppState = {
-      suggestions: [{ ...suggestion, status: 'dismissed', reason: 'Handmatig genegeerd', statusBeforeDismiss: 'ready', reasonBeforeDismiss: '100% bekeken' }],
-      ignoredSuggestionIds: [suggestion.id],
-      activity: []
-    };
+  it('herstelt een genegeerde titel met zijn echte status', () => {
+    const state: AppState = { suggestions: [{ ...suggestion, status: 'ready', reason: '100% bekeken' }], ignoredSuggestionIds: [suggestion.id], activity: [] };
     const restored = testing.restoreIgnoredSuggestion(state, suggestion.id);
     expect(restored?.status).toBe('ready');
     expect(restored?.reason).toBe('100% bekeken');
-    expect(state.ignoredSuggestionIds).toEqual([]);
+    expect(withIgnored(state)[0].status).toBe('ready');
   });
 
   it('verbergt alle seizoenen die bij verwijderd Seerr-verzoek horen', () => {

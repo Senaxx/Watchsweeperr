@@ -3,8 +3,8 @@ import { z } from 'zod';
 import type { AppState, HiddenCounts, ServiceConfig, ServiceName, Suggestion } from '../shared.js';
 import { genreKey } from '../genres.js';
 import { authRoutes, requireSession } from './auth.js';
-import { deleteSeerrRequest, removeMedia, removeSeasonGroup, ServiceApiError, testService } from './apiClients.js';
-import { markRequestRemoved, runAutomaticRemovals } from './automaticRemoval.js';
+import { ServiceApiError, testService } from './apiClients.js';
+import { markRequestRemoved, type RemovalResult, removeSuggestions, runAutomaticRemovals, withIgnored } from './removal.js';
 import { cleanUrl, getSettings, saveSettings, toPublicSettings } from './settingsStore.js';
 import { activity, getState, updateState } from './stateStore.js';
 import { retentionExpired, scanRequests } from './syncEngine.js';
@@ -32,19 +32,6 @@ const settingsSchema = z.object({
     sonarr: serviceSchema
   })
 });
-
-function applyIgnoredSuggestions(suggestions: Suggestion[], ignoredIds: string[]) {
-  const ignored = new Set(ignoredIds);
-  return suggestions.map((suggestion) => ignored.has(suggestion.id)
-    ? {
-        ...suggestion,
-        statusBeforeDismiss: suggestion.status as 'ready' | 'partial' | 'waiting',
-        reasonBeforeDismiss: suggestion.reason,
-        status: 'dismissed' as const,
-        reason: 'Handmatig genegeerd'
-      }
-    : suggestion);
-}
 
 function filterExcludedSuggestions(suggestions: Suggestion[], excludedUsers: string[]) {
   const excluded = new Set(excludedUsers.map((user) => user.trim().toLocaleLowerCase('nl-NL')));
@@ -80,48 +67,6 @@ function canManuallyRemove(suggestion: Suggestion): boolean {
   return suggestion.status === 'ready' || suggestion.status === 'waiting' || suggestion.status === 'partial';
 }
 
-function groupSuggestionsForRemoval(suggestions: Suggestion[]): Suggestion[][] {
-  const groups = new Map<string, Suggestion[]>();
-  for (const suggestion of suggestions) {
-    const key = suggestion.mediaKind === 'movie'
-      ? `movie:${suggestion.id}`
-      : `series:${suggestion.tvdbId ?? suggestion.requestId}`;
-    const group = groups.get(key) ?? [];
-    group.push(suggestion);
-    groups.set(key, group);
-  }
-  return [...groups.values()];
-}
-
-interface RemovalResult {
-  details: string[];
-  failures: string[];
-  removedCount: number;
-}
-
-// Removes title by title; one failure does not stop the others, and every success is recorded.
-async function removeSuggestions(settings: Awaited<ReturnType<typeof getSettings>>, state: AppState, suggestions: Suggestion[]): Promise<RemovalResult> {
-  const result: RemovalResult = { details: [], failures: [], removedCount: 0 };
-  for (const group of groupSuggestionsForRemoval(suggestions)) {
-    const requestIds = [...new Set(group.flatMap((suggestion) => suggestion.requestIds?.length ? suggestion.requestIds : [suggestion.requestId]))];
-    try {
-      if (!settings.demoMode) {
-        const mediaDetail = group[0].mediaKind === 'movie'
-          ? await removeMedia(settings, group[0])
-          : await removeSeasonGroup(settings, group);
-        const requestDetails = await Promise.all(requestIds.map((requestId) => deleteSeerrRequest(settings.services.seerr, requestId)));
-        result.details.push(mediaDetail, ...requestDetails);
-      }
-      markRequestRemoved(state, requestIds);
-      result.removedCount += group.length;
-    } catch (error) {
-      result.failures.push(`${group[0].title}: ${error instanceof Error ? error.message : 'Onbekende fout'}`);
-    }
-  }
-  if (settings.demoMode) result.details.push('Demo: geen externe bestanden of verzoeken gewijzigd.');
-  return result;
-}
-
 function logRemoval(state: AppState, title: string, result: RemovalResult) {
   if (result.removedCount) state.activity.unshift(activity('remove', title, result.details.join(' ')));
   if (result.failures.length) state.activity.unshift(activity('remove', 'Verwijderen mislukt', result.failures.join(' '), 'error'));
@@ -142,10 +87,8 @@ function restoreIgnoredSuggestion(state: AppState, id: string) {
   const suggestion = state.suggestions.find((item) => item.id === id);
   if (!suggestion || !state.ignoredSuggestionIds.includes(id)) return undefined;
   state.ignoredSuggestionIds = state.ignoredSuggestionIds.filter((ignoredId) => ignoredId !== id);
-  suggestion.status = suggestion.statusBeforeDismiss ?? 'waiting';
-  suggestion.reason = suggestion.reasonBeforeDismiss ?? 'Opnieuw te controleren';
-  delete suggestion.statusBeforeDismiss;
-  delete suggestion.reasonBeforeDismiss;
+  // shortcut: state saved before 19 Oct 2026 stored "dismissed" as the status itself; the next scan rewrites it, so this line can go later.
+  if (suggestion.status === 'dismissed') suggestion.status = 'waiting';
   return suggestion;
 }
 
@@ -165,7 +108,7 @@ async function performSync(): Promise<AppState> {
   // The slow scan runs outside the state queue; only applying its result waits for other changes.
   const scan = await scanRequests(settings);
   return updateState(async (state) => {
-    state.suggestions = applyIgnoredSuggestions(scan.suggestions, state.ignoredSuggestionIds);
+    state.suggestions = scan.suggestions;
     state.serverStatistics = scan.serverStatistics;
     const automatic = await runAutomaticRemovals(settings, state);
     state.lastSyncAt = new Date().toISOString();
@@ -216,8 +159,9 @@ export function createApp() {
     try {
       const [state, settings] = await Promise.all([getState(), getSettings()]);
       const servicesConfigured = Object.values(settings.services).filter((service) => service.apiKey).length;
-      const ignoredSuggestions = state.suggestions.filter((suggestion) => suggestion.status === 'dismissed');
-      const { suggestions, hidden } = visibleSuggestions(state.suggestions, settings);
+      const all = withIgnored(state);
+      const ignoredSuggestions = all.filter((suggestion) => suggestion.status === 'dismissed');
+      const { suggestions, hidden } = visibleSuggestions(all, settings);
       response.json({ ...state, suggestions, ignoredSuggestions, hidden, demoMode: settings.demoMode, servicesConfigured });
     } catch (error) { next(error); }
   });
@@ -266,7 +210,7 @@ export function createApp() {
       z.object({ confirmation: z.literal(true) }).parse(request.body);
       const settings = await getSettings();
       const outcome = await updateState<RouteOutcome>(async (state) => {
-        const suggestion = state.suggestions.find((item) => item.id === request.params.id);
+        const suggestion = withIgnored(state).find((item) => item.id === request.params.id);
         if (!suggestion) return { status: 404, body: { error: 'Voorstel niet gevonden.' } };
         if (!canManuallyRemove(suggestion)) return { status: 409, body: { error: 'Deze content kan niet handmatig worden verwijderd.' } };
         const result = await removeSuggestions(settings, state, [suggestion]);
@@ -285,7 +229,8 @@ export function createApp() {
       const ids = [...new Set(input.ids)];
       const settings = await getSettings();
       const outcome = await updateState<RouteOutcome>(async (state) => {
-        const suggestions = ids.map((id) => state.suggestions.find((item) => item.id === id));
+        const all = withIgnored(state);
+        const suggestions = ids.map((id) => all.find((item) => item.id === id));
         if (suggestions.some((suggestion) => !suggestion)) return { status: 404, body: { error: 'Een of meer voorstellen zijn niet gevonden.' } };
         const selected = suggestions as Suggestion[];
         if (!selected.every(canManuallyRemove)) return { status: 409, body: { error: 'Deze content kan niet handmatig worden verwijderd.' } };
@@ -304,12 +249,6 @@ export function createApp() {
       const outcome = await updateState<RouteOutcome>((state) => {
         const suggestion = state.suggestions.find((item) => item.id === request.params.id);
         if (!suggestion) return { status: 404, body: { error: 'Voorstel niet gevonden.' } };
-        if (['ready', 'partial', 'waiting'].includes(suggestion.status)) {
-          suggestion.statusBeforeDismiss = suggestion.status as 'ready' | 'partial' | 'waiting';
-          suggestion.reasonBeforeDismiss = suggestion.reason;
-        }
-        suggestion.status = 'dismissed';
-        suggestion.reason = 'Handmatig genegeerd';
         if (!state.ignoredSuggestionIds.includes(suggestion.id)) state.ignoredSuggestionIds.push(suggestion.id);
         state.activity.unshift(activity('dismiss', `${suggestion.title} genegeerd`, 'Item blijft verborgen na nieuwe scans.', 'info'));
         return { status: 200, body: suggestion };
@@ -338,4 +277,4 @@ export function createApp() {
   return app;
 }
 
-export const testing = { visibleSuggestions, applyIgnoredSuggestions, filterExcludedSuggestions, filterIgnoredGenres, filterRecentRequests, canManuallyRemove, groupSuggestionsForRemoval, restoreIgnoredSuggestion, markRequestRemoved };
+export const testing = { visibleSuggestions, filterExcludedSuggestions, filterIgnoredGenres, filterRecentRequests, canManuallyRemove, restoreIgnoredSuggestion, markRequestRemoved };
