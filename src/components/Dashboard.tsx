@@ -24,7 +24,7 @@ interface DashboardProps {
   goSettings: () => void;
   selectedIds: string[];
   setSelectedIds: Dispatch<SetStateAction<string[]>>;
-  openBulkDialog: () => void;
+  openBulkDialog: (status: SuggestionStatus) => void;
   seerrBaseUrl: string;
 }
 
@@ -146,9 +146,8 @@ function StatusTable({ title, description, status, items, onRemove, onDismiss, s
   const t = translator(language);
   const [order, setOrder] = useState<SortOrder>(status === 'ready' ? 'progress-desc' : 'requested-desc');
   const sorted = useMemo(() => sortSuggestions(items, order, language), [items, order, language]);
-  const selectable = status === 'ready';
-  const allSelected = selectable && sorted.length > 0 && sorted.every((item) => selectedIds.includes(item.id));
-  const selectedCount = selectable ? items.filter((item) => selectedIds.includes(item.id)).length : 0;
+  const allSelected = sorted.length > 0 && sorted.every((item) => selectedIds.includes(item.id));
+  const selectedCount = items.filter((item) => selectedIds.includes(item.id)).length;
   const toggleAll = () => setSelectedIds((current) => allSelected
     ? current.filter((id) => !sorted.some((item) => item.id === id))
     : [...new Set([...current, ...sorted.map((item) => item.id)])]);
@@ -166,7 +165,7 @@ function StatusTable({ title, description, status, items, onRemove, onDismiss, s
         </div>
         <div className="table-head-actions">
           {selectedCount > 0 && (
-            <button className="bulk-remove-button" onClick={openBulkDialog}>
+            <button className="bulk-remove-button" onClick={() => openBulkDialog(status)}>
               <Trash2 size={14} />{t('removeSelected', { count: selectedCount })}
             </button>
           )}
@@ -186,7 +185,7 @@ function StatusTable({ title, description, status, items, onRemove, onDismiss, s
       <div className="request-table">
         <div className="table-header">
           <span className="content-heading">
-            {selectable && <input className="row-checkbox" type="checkbox" checked={allSelected} onChange={toggleAll} aria-label={t('selectAll')} />}
+            <input className="row-checkbox" type="checkbox" checked={allSelected} onChange={toggleAll} aria-label={t('selectAll')} />
             {t('content')}
           </span>
           <span>{t('requester')}</span>
@@ -234,7 +233,7 @@ function SuggestionRow({ item, onRemove, onDismiss, selected, onToggle, seerrBas
   return (
     <div className={`table-row ${item.status === 'removed' || item.status === 'dismissed' ? 'muted' : ''}`}>
       <div className="media-cell">
-        {item.status === 'ready' && <input className="row-checkbox" type="checkbox" checked={selected} onChange={onToggle} aria-label={t('selectItem')} />}
+        <input className="row-checkbox" type="checkbox" checked={selected} onChange={onToggle} aria-label={t('selectItem')} />
         <Poster item={item} />
         <div>
           {seerrLink ? (

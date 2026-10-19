@@ -273,7 +273,7 @@ export function createApp() {
         const suggestions = ids.map((id) => state.suggestions.find((item) => item.id === id));
         if (suggestions.some((suggestion) => !suggestion)) return { status: 404, body: { error: 'Een of meer voorstellen zijn niet gevonden.' } };
         const selected = suggestions as Suggestion[];
-        if (selected.some((suggestion) => suggestion.status !== 'ready')) return { status: 409, body: { error: 'Alleen content die klaar is voor controle kan worden verwijderd.' } };
+        if (!selected.every(canManuallyRemove)) return { status: 409, body: { error: 'Deze content kan niet handmatig worden verwijderd.' } };
         const result = await removeSuggestions(settings, state, selected);
         logRemoval(state, `${result.removedCount} items verwijderd`, result);
         return result.failures.length

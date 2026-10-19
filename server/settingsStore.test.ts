@@ -263,6 +263,26 @@ describe('statusbestand', () => {
     await expect(readdir(dataDirectory)).resolves.toEqual(['state.json']);
   });
 
+  it('verwijdert in bulk ook niet en half bekeken items, maar geen genegeerde', async () => {
+    const { saveState, getState } = await import('./stateStore.js');
+    const { createApp } = await import('./app.js');
+    await saveState({
+      suggestions: [
+        { ...base, id: 'niet', requestId: 1, title: 'Niet', status: 'waiting' },
+        { ...base, id: 'half', requestId: 2, title: 'Half', status: 'partial' },
+        { ...base, id: 'weg', requestId: 3, title: 'Weg', status: 'dismissed' }
+      ],
+      ignoredSuggestionIds: ['weg'],
+      activity: []
+    });
+
+    const removed = await request(createApp()).post('/api/suggestions/bulk-remove').send({ ids: ['niet', 'half'], confirmation: true });
+    expect(removed.status).toBe(200);
+    expect(removed.body.removed).toBe(2);
+    expect((await request(createApp()).post('/api/suggestions/bulk-remove').send({ ids: ['weg'], confirmation: true })).status).toBe(409);
+    expect((await getState()).suggestions.map((item) => item.status)).toEqual(['removed', 'removed', 'dismissed']);
+  });
+
   it('verwijdert de rest en legt alles vast wanneer één titel mislukt', async () => {
     const { saveSettings } = await import('./settingsStore.js');
     const { saveState, getState } = await import('./stateStore.js');

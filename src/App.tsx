@@ -1,6 +1,6 @@
 import { ChevronRight, History, LayoutDashboard, LogOut, Menu, Play, RefreshCw, Settings as SettingsIcon, ShieldCheck, X } from 'lucide-react';
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
-import type { Language, Overview, PublicSettings, ServiceConfig, ServiceName, Suggestion } from '../shared';
+import type { Language, Overview, PublicSettings, ServiceConfig, ServiceName, Suggestion, SuggestionStatus } from '../shared';
 import { Activity } from './components/Activity';
 import { Dashboard } from './components/Dashboard';
 import { BulkRemoveDialog, RemoveDialog } from './components/Dialogs';
@@ -35,7 +35,8 @@ export function App() {
   const [notice, setNotice] = useState<Notice | null>(null);
   const [removing, setRemoving] = useState<Suggestion | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [bulkOpen, setBulkOpen] = useState(false);
+  // The group whose selection the bulk dialog removes; each group's button only removes its own selection.
+  const [bulkStatus, setBulkStatus] = useState<SuggestionStatus | null>(null);
   const [query, setQuery] = useState('');
   const [genreFilter, setGenreFilter] = useState('');
   const language = settings?.language ?? auth?.language ?? 'nl';
@@ -111,7 +112,7 @@ export function App() {
 
   useEffect(() => {
     setSelectedIds([]);
-    setBulkOpen(false);
+    setBulkStatus(null);
   }, [query, genreFilter]);
 
   const genres = useMemo(
@@ -129,8 +130,8 @@ export function App() {
   }, [overview, query, genreFilter, language]);
 
   const selected = useMemo(
-    () => (overview?.suggestions ?? []).filter((item) => selectedIds.includes(item.id) && item.status === 'ready'),
-    [overview, selectedIds]
+    () => (overview?.suggestions ?? []).filter((item) => selectedIds.includes(item.id) && item.status === bulkStatus),
+    [overview, selectedIds, bulkStatus]
   );
 
   async function run(action: () => Promise<void>, fallback: Parameters<typeof t>[0]) {
@@ -206,8 +207,8 @@ export function App() {
       });
       setNotice({ kind: 'success', text: t('bulkRemovedNotice', { count: result.removed }) });
     } finally {
-      setBulkOpen(false);
-      setSelectedIds([]);
+      setBulkStatus(null);
+      setSelectedIds((current) => current.filter((id) => !selected.some((item) => item.id === id)));
     }
     await load();
   }, 'removeFailed');
@@ -322,7 +323,7 @@ export function App() {
               goSettings={() => setPage('settings')}
               selectedIds={selectedIds}
               setSelectedIds={setSelectedIds}
-              openBulkDialog={() => setBulkOpen(true)}
+              openBulkDialog={setBulkStatus}
               seerrBaseUrl={settings.services.seerr.url}
             />
           ) : page === 'activity' ? (
@@ -350,8 +351,8 @@ export function App() {
       {removing && (
         <RemoveDialog suggestion={removing} demoMode={overview?.demoMode ?? true} busy={busy} close={() => setRemoving(null)} confirm={confirmRemove} language={language} />
       )}
-      {bulkOpen && selected.length > 0 && (
-        <BulkRemoveDialog suggestions={selected} demoMode={overview?.demoMode ?? true} busy={busy} close={() => setBulkOpen(false)} confirm={confirmBulkRemove} language={language} />
+      {selected.length > 0 && (
+        <BulkRemoveDialog suggestions={selected} demoMode={overview?.demoMode ?? true} busy={busy} close={() => setBulkStatus(null)} confirm={confirmBulkRemove} language={language} />
       )}
     </div>
   );

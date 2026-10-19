@@ -1,7 +1,7 @@
 import { Archive, Trash2, X } from 'lucide-react';
 import type { ReactNode } from 'react';
 import type { Language, Suggestion } from '../../shared';
-import { formatBytes, formatDate, formatDateTime } from '../format';
+import { formatBytes, formatDate, formatDateTime, statusLabel } from '../format';
 import { serverText, translator } from '../i18n';
 
 interface DialogProps {
@@ -71,7 +71,7 @@ export function BulkRemoveDialog({ suggestions, demoMode, busy, close, confirm, 
         {suggestions.map((item) => (
           <div key={item.id}>
             <strong>{item.title}</strong>
-            <span>{serverText(item.subtitle, language)} · {item.requester} · {formatBytes(item.fileSizeBytes, language)}</span>
+            <span>{serverText(item.subtitle, language)} · {item.requester} · {statusLabel(item.status, language)} · {formatBytes(item.fileSizeBytes, language)}</span>
           </div>
         ))}
       </div>

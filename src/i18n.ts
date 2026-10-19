@@ -32,6 +32,7 @@ const exactServerText: Record<string, string> = {
   'Voorstel niet gevonden.': 'Suggestion not found.',
   'Alleen volledig bekeken content kan worden verwijderd.': 'Only fully watched content can be removed.',
   'Bevestiging ontbreekt.': 'Confirmation is missing.',
+  'Deze content kan niet handmatig worden verwijderd.': 'This content cannot be removed manually.',
   'Verwijderen mislukt': 'Removal failed',
   'Inloggen vereist.': 'Sign-in required.',
   'Onjuiste gebruikersnaam of wachtwoord.': 'Incorrect username or password.',
