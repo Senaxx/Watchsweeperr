@@ -121,6 +121,19 @@ describe('inloggen', () => {
     expect((await request(app).get('/api/settings').set('Cookie', cookieFrom(setup))).status).toBe(200);
     expect((await request(app).get('/api/health')).status).toBe(200);
     expect((await request(app).get('/api/settings').set('Cookie', 'watchsweeperr_session=9999999999999.vervalst')).status).toBe(401);
+    // Express routes ignore case; the sign-in check must too.
+    expect((await request(app).get('/API/settings')).status).toBe(401);
+    expect((await request(app).post('/Api/suggestions/bulk-remove').send({ ids: ['x'], confirmation: true })).status).toBe(401);
+  });
+
+  it('controleert wachtwoorden na elkaar, zodat parallel raden niet sneller gaat', async () => {
+    const { createApp } = await import('./app.js');
+    const app = createApp();
+    await request(app).post('/api/auth/setup').send(credentials);
+    const started = Date.now();
+    const attempts = await Promise.all([1, 2, 3].map(() => request(app).post('/api/auth/login').send({ ...credentials, password: 'fout-wachtwoord' })));
+    expect(attempts.map((response) => response.status)).toEqual([401, 401, 401]);
+    expect(Date.now() - started).toBeGreaterThanOrEqual(2900);
   });
 
   it('staat maar één account toe en weigert korte wachtwoorden', async () => {
@@ -189,6 +202,22 @@ describe('opgeslagen API-keys', () => {
     expect((await request(createApp()).put('/api/settings').send(body('http://elders.example'))).status).toBe(400);
     expect((await request(createApp()).put('/api/settings').send(body('http://radarr'))).status).toBe(200);
     await expect(getSettings()).resolves.toMatchObject({ services: { radarr: { url: 'http://radarr', apiKey: 'radarr-key' } } });
+  });
+});
+
+describe('periodieke scan', () => {
+  it('zet een mislukte scan in het activiteitenlogboek', async () => {
+    const { saveSettings } = await import('./settingsStore.js');
+    const { getState } = await import('./stateStore.js');
+    const { scheduledSync } = await import('./app.js');
+    await saveSettings({ demoMode: false });
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    await scheduledSync();
+
+    const [entry] = (await getState()).activity;
+    expect(entry).toMatchObject({ type: 'sync', title: 'Scan mislukt', outcome: 'error' });
+    expect(entry.detail).toContain('API-key ontbreekt');
   });
 });
 

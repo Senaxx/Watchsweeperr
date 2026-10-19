@@ -140,7 +140,6 @@ async function performSync(): Promise<AppState> {
   if (settings.demoMode) {
     return updateState((state) => {
       state.lastSyncAt = new Date().toISOString();
-      state.lastSyncError = undefined;
       state.activity.unshift(activity('sync', 'Demoscan voltooid', `${state.suggestions.length} demo-items gecontroleerd.`));
       return state;
     });
@@ -154,7 +153,6 @@ async function performSync(): Promise<AppState> {
     state.serverStatistics = scan.serverStatistics;
     const automatic = await runAutomaticRemovals(settings, state);
     state.lastSyncAt = new Date().toISOString();
-    state.lastSyncError = undefined;
     const automaticDetail = automatic.removed || automatic.failed
       ? ` Automatisch: ${automatic.removed} verwijderd, ${automatic.failed} mislukt.`
       : '';
@@ -176,6 +174,18 @@ export function synchronize() {
     synchronization = performSync().finally(() => { synchronization = undefined; });
   }
   return synchronization;
+}
+
+// The hourly scan. Failures go to the activity log so they show up in the app, not only in the Docker log.
+export async function scheduledSync() {
+  try {
+    const settings = await getSettings();
+    if (!settings.demoMode) await synchronize();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Onbekende fout';
+    console.error('Periodieke WatchSweeperr-scan mislukt:', message);
+    await updateState((state) => { state.activity.unshift(activity('sync', 'Scan mislukt', message, 'error')); }).catch(() => undefined);
+  }
 }
 
 export function createApp() {

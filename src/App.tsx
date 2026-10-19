@@ -66,6 +66,8 @@ export function App() {
       if (status.configured && status.authenticated) await load();
     } catch (error) {
       fail(error, 'loadError');
+      // The server may be restarting (for example during an update); try again instead of loading forever.
+      window.setTimeout(() => void checkAuth(), 3000);
     }
   }
 

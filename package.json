@@ -12,10 +12,6 @@
   },
   "dependencies": {
     "express": "^5.1.0",
-    "lucide-react": "^0.468.0",
-    "react": "^19.1.1",
-    "react-dom": "^19.1.1",
-    "cross-env": "^10.0.0",
     "tsx": "^4.20.5",
     "zod": "^3.24.1"
   },
@@ -26,6 +22,10 @@
     "@types/react-dom": "^19.1.7",
     "@types/supertest": "^6.0.3",
     "@vitejs/plugin-react": "^5.0.2",
+    "cross-env": "^10.0.0",
+    "lucide-react": "^0.468.0",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
     "supertest": "^7.1.4",
     "typescript": "^5.9.2",
     "vite": "^7.1.4",

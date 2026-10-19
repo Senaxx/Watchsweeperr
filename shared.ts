@@ -99,7 +99,6 @@ export interface AppState {
   ignoredSuggestionIds: string[];
   activity: ActivityItem[];
   lastSyncAt?: string;
-  lastSyncError?: string;
   serverStatistics?: ServerStatistics;
 }
 

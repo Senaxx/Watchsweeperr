@@ -71,10 +71,29 @@ const sameUser = (a: string, b: string) => a.toLocaleLowerCase('nl-NL') === b.to
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const PUBLIC_API = new Set(['/api/health', '/api/auth/status', '/api/auth/setup', '/api/auth/login', '/api/auth/logout']);
 
+let passwordQueue: Promise<unknown> = Promise.resolve();
+
+// Checks passwords one at a time, so the delay after a wrong one also limits guesses sent in parallel.
+function oneAtATime<T>(task: () => Promise<T>): Promise<T> {
+  const run = passwordQueue.then(task);
+  passwordQueue = run.catch(() => undefined);
+  return run;
+}
+
+async function checkPassword(account: Account | undefined, password: string, username = account?.username ?? ''): Promise<boolean> {
+  return oneAtATime(async () => {
+    if (account && sameUser(account.username, username.trim()) && await passwordMatches(account, password)) return true;
+    await wait(1000);
+    return false;
+  });
+}
+
 // Until an account exists the API stays open, so the first visit can create one.
 export const requireSession: express.RequestHandler = async (request, response, next) => {
   try {
-    if (!request.path.startsWith('/api/') || PUBLIC_API.has(request.path)) return next();
+    // Express matches routes regardless of case, so /API/... must be checked too.
+    const path = request.path.toLowerCase();
+    if (!path.startsWith('/api/') || PUBLIC_API.has(path)) return next();
     const account = await getAccount();
     if (!account || hasValidSession(account, request.headers.cookie)) return next();
     response.status(401).json({ error: 'Inloggen vereist.' });
@@ -105,10 +124,8 @@ export function authRoutes(): express.Router {
     try {
       const { username, password } = z.object({ username: z.string(), password: z.string() }).parse(request.body);
       const account = await getAccount();
-      if (!account || !sameUser(account.username, username.trim()) || !(await passwordMatches(account, password))) {
-        await wait(1000); // Slows down password guessing.
-        return response.status(401).json({ error: 'Onjuiste gebruikersnaam of wachtwoord.' });
-      }
+      const valid = await checkPassword(account, password, username);
+      if (!account || !valid) return response.status(401).json({ error: 'Onjuiste gebruikersnaam of wachtwoord.' });
       response.set('Set-Cookie', sessionCookie(account)).json({ username: account.username });
     } catch (error) { next(error); }
   });
@@ -122,8 +139,7 @@ export function authRoutes(): express.Router {
       const input = z.object({ currentPassword: z.string(), username: z.string(), newPassword: z.string() }).parse(request.body);
       const account = await getAccount();
       if (!account) return response.status(409).json({ error: 'Er is nog geen account.' });
-      if (!(await passwordMatches(account, input.currentPassword))) {
-        await wait(1000);
+      if (!(await checkPassword(account, input.currentPassword))) {
         return response.status(403).json({ error: 'Huidig wachtwoord klopt niet.' });
       }
       const { username, password } = credentialsSchema.parse({ username: input.username, password: input.newPassword || input.currentPassword });

@@ -1,9 +1,7 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import express from 'express';
-import { createApp, synchronize } from './app.js';
-import { getSettings } from './settingsStore.js';
-import { SCHEDULED_SYNC_INTERVAL_MS, shouldRunScheduledSync } from './scheduler.js';
+import { createApp, scheduledSync } from './app.js';
 
 const port = Number(process.env.PORT ?? 4173);
 const app = createApp();
@@ -23,12 +21,4 @@ app.listen(port, '0.0.0.0', () => {
   console.log(`WatchSweeperr draait op http://localhost:${port}`);
 });
 
-const scheduledSync = setInterval(async () => {
-  try {
-    const settings = await getSettings();
-    if (shouldRunScheduledSync(settings)) await synchronize();
-  } catch (error) {
-    console.error('Periodieke WatchSweeperr-scan mislukt:', error instanceof Error ? error.message : 'Onbekende fout');
-  }
-}, SCHEDULED_SYNC_INTERVAL_MS);
-scheduledSync.unref();
+setInterval(scheduledSync, 60 * 60 * 1000).unref();

@@ -23,6 +23,7 @@ const exactServerText: Record<string, string> = {
   'Live integraties staan aan.': 'Live integrations are active.',
   'Demoscan voltooid': 'Demo scan completed',
   'Scan voltooid': 'Scan completed',
+  'Scan mislukt': 'Scan failed',
   'Seerr-verzoek verwijderd.': 'Seerr request removed.',
   'Seerr-verzoek was al verwijderd.': 'Seerr request was already removed.',
   'Film was al verwijderd uit Radarr.': 'Movie was already removed from Radarr.',
