@@ -73,6 +73,7 @@ export function Dashboard(props: DashboardProps) {
         <div>
           <h2>{t('requestsByStatus')}</h2>
           <p>{t('requestsByStatusDescription')}</p>
+          <HiddenSummary overview={overview} language={language} />
         </div>
         <div className="queue-filters">
           <label className="genre-filter">
@@ -95,6 +96,24 @@ export function Dashboard(props: DashboardProps) {
         <StatusTable {...shared} title={t('beingWatched')} description={t('progressIncomplete')} status="partial" items={suggestions.filter((item) => item.status === 'partial')} />
       </div>
     </>
+  );
+}
+
+function HiddenSummary({ overview, language }: { overview: Overview; language: Language }) {
+  const t = translator(language);
+  const parts = [
+    { count: overview.hidden.excludedUsers, key: 'hiddenExcluded' },
+    { count: overview.hidden.ignoredGenres, key: 'hiddenGenres' },
+    { count: overview.hidden.notYetDue, key: 'hiddenNotDue' },
+    { count: overview.ignoredSuggestions.length, key: 'hiddenIgnored' }
+  ] as const;
+  const shown = parts.filter((part) => part.count > 0);
+  if (!shown.length) return null;
+  const total = shown.reduce((sum, part) => sum + part.count, 0);
+  return (
+    <p className="hidden-summary">
+      {t('hiddenSummary', { count: total })} {shown.map((part) => t(part.key, { count: part.count })).join(', ')}
+    </p>
   );
 }
 

@@ -75,6 +75,23 @@ describe('genegeerde voorstellen', () => {
     expect(testing.filterRecentRequests(suggestions, 3, 5, now).map((item) => item.id)).toEqual(['old-waiting', 'recent-watched']);
   });
 
+  it('telt verborgen open verzoeken per reden, zonder genegeerde of getoonde items', () => {
+    const settings = {
+      demoMode: false, excludedUsers: ['senaxx'], ignoredGenres: ['Horror'], retentionMonths: 0, retentionDays: 30
+    } as unknown as Parameters<typeof testing.hiddenCounts>[1];
+    const old = '2026-01-01T00:00:00Z';
+    const recent = new Date().toISOString();
+    const suggestions = [
+      { ...suggestion, id: 'excluded', requester: 'Senaxx', requestedAt: old },
+      { ...suggestion, id: 'genre', genres: ['Horror'], requestedAt: old },
+      { ...suggestion, id: 'recent', requestedAt: recent },
+      { ...suggestion, id: 'shown-ready', status: 'ready' as const, requestedAt: recent },
+      { ...suggestion, id: 'ignored', status: 'dismissed' as const, requester: 'Senaxx', requestedAt: old }
+    ];
+    expect(testing.hiddenCounts(suggestions, settings)).toEqual({ excludedUsers: 1, ignoredGenres: 1, notYetDue: 1 });
+    expect(testing.hiddenCounts(suggestions, { ...settings, demoMode: true })).toEqual({ excludedUsers: 1, ignoredGenres: 1, notYetDue: 0 });
+  });
+
   it('rekent de bewaartermijn vanaf beschikbaarheid, niet vanaf de oude aanvraag', () => {
     const now = new Date('2026-09-26T12:00:00Z');
     const lateArrival = { ...suggestion, requestedAt: '2026-03-01T00:00:00Z', availableSince: '2026-09-20T00:00:00Z' };

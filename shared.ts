@@ -102,8 +102,15 @@ export interface AppState {
   serverStatistics?: ServerStatistics;
 }
 
+export interface HiddenCounts {
+  excludedUsers: number;
+  ignoredGenres: number;
+  notYetDue: number;
+}
+
 export interface Overview extends AppState {
   demoMode: boolean;
+  hidden: HiddenCounts;
   servicesConfigured: number;
   ignoredSuggestions: Suggestion[];
 }

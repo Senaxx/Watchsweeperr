@@ -1601,22 +1601,6 @@ button:disabled {
   font-size: 12px;
   line-height: 16px;
 }
-.language-rule select {
-  min-width: 112px;
-  height: 36px;
-  padding: 8px 28px 8px 12px;
-  border: 1px solid #353535;
-  border-radius: 8px;
-  outline: 0;
-  color: #d7d7d7;
-  background: #101010;
-  font-size: 14px;
-  line-height: 20px;
-  cursor: pointer;
-}
-.language-rule select:focus {
-  border-color: #666;
-}
 .rule.vertical {
   min-height: 92px;
   display: block;
@@ -1645,7 +1629,7 @@ button:disabled {
 }
 .cutoff-control {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-2);
   margin-top: var(--space-3);
 }
@@ -2298,29 +2282,29 @@ button:disabled {
 .auth-field input:focus {
   border-color: #526331;
 }
-.account-box {
+.account-form {
   display: grid;
   gap: var(--space-3);
-  margin-top: var(--space-5);
-  padding-top: var(--space-5);
-  border-top: 1px solid var(--line-soft);
 }
-.account-box > div:first-child {
-  display: grid;
-  gap: var(--space-1);
+.account-form .service-card-head {
+  margin-bottom: 0;
 }
-.account-box strong {
-  font-size: 14px;
-  font-weight: 500;
-  line-height: 20px;
-}
-.account-box > div:first-child span {
-  color: #8b8b8b;
-  font-size: 12px;
-  line-height: 16px;
-}
-.account-box .secondary-button {
+.account-form .secondary-button {
   justify-content: center;
+}
+.auth-field select {
+  width: 100%;
+  height: 36px;
+  padding: 7px 10px;
+  border: 1px solid #353535;
+  border-radius: 8px;
+  outline: 0;
+  color: #dedede;
+  background: #101010;
+  font-size: 13px;
+}
+.auth-field select:focus {
+  border-color: #526331;
 }
 .sign-out {
   margin-left: auto;
@@ -2338,4 +2322,28 @@ button:disabled {
   border-color: var(--line);
   color: #ededed;
   background: var(--surface-2);
+}
+.hidden-summary {
+  margin-top: var(--space-1);
+  color: var(--faint);
+  font-size: 12px;
+  line-height: 16px;
+}
+.save-bar {
+  position: sticky;
+  bottom: var(--space-4);
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-top: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid #4b4320;
+  border-radius: 10px;
+  color: #e8d9a0;
+  background: #1f1c12;
+  box-shadow: 0 16px 40px #00000059;
+  font-size: 14px;
+  line-height: 20px;
 }

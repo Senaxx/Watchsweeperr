@@ -1,5 +1,5 @@
 import { ChevronRight, History, LayoutDashboard, LogOut, Menu, Play, RefreshCw, Settings as SettingsIcon, ShieldCheck, X } from 'lucide-react';
-import { type ReactNode, useEffect, useMemo, useState } from 'react';
+import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import type { Language, Overview, PublicSettings, ServiceConfig, ServiceName, Suggestion, SuggestionStatus } from '../shared';
 import { Activity } from './components/Activity';
 import { Dashboard } from './components/Dashboard';
@@ -27,6 +27,7 @@ export function App() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [overview, setOverview] = useState<Overview | null>(null);
   const [settings, setSettings] = useState<PublicSettings | null>(null);
+  const [savedSettings, setSavedSettings] = useState<PublicSettings | null>(null);
   const [drafts, setDrafts] = useState<Drafts | null>(null);
   const [tests, setTests] = useState<Record<ServiceName, ServiceTest>>({
     seerr: { state: 'idle' }, tautulli: { state: 'idle' }, radarr: { state: 'idle' }, sonarr: { state: 'idle' }
@@ -49,12 +50,28 @@ export function App() {
     document.title = 'WatchSweeperr';
   }, [language]);
 
+  const unsaved = Boolean(settings && savedSettings && drafts
+    && (JSON.stringify(settings) !== JSON.stringify(savedSettings) || JSON.stringify(drafts) !== JSON.stringify(draftsFrom(savedSettings))));
+  // Read by load(), which runs after every action: a refresh must not wipe settings you are still editing.
+  const unsavedRef = useRef(false);
+  unsavedRef.current = unsaved;
+
+  useEffect(() => {
+    if (!unsaved) return;
+    const warn = (event: BeforeUnloadEvent) => event.preventDefault();
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [unsaved]);
+
   async function load(): Promise<boolean> {
     try {
       const [nextOverview, nextSettings] = await Promise.all([api<Overview>('/api/overview'), api<PublicSettings>('/api/settings')]);
       setOverview(nextOverview);
-      setSettings(nextSettings);
-      setDrafts(draftsFrom(nextSettings));
+      setSavedSettings(nextSettings);
+      if (!unsavedRef.current) {
+        setSettings(nextSettings);
+        setDrafts(draftsFrom(nextSettings));
+      }
       return true;
     } catch (error) {
       fail(error, 'loadError');
@@ -87,6 +104,8 @@ export function App() {
     setAuth((current) => current && { ...current, authenticated: false, username: undefined });
     setOverview(null);
     setSettings(null);
+    setSavedSettings(null);
+    unsavedRef.current = false;
   }
 
   async function updateAccount(input: AccountUpdate): Promise<boolean> {
@@ -175,7 +194,9 @@ export function App() {
         })
       });
       setSettings(saved);
+      setSavedSettings(saved);
       setDrafts(draftsFrom(saved));
+      unsavedRef.current = false;
       await load();
       setNotice({ kind: 'success', text: translator(saved.language)('settingsSaved') });
     }, 'saveFailed');
@@ -341,6 +362,7 @@ export function App() {
               restoreIgnored={restore}
               busy={busy}
               language={language}
+              unsaved={unsaved}
               username={auth?.username ?? ''}
               updateAccount={updateAccount}
             />

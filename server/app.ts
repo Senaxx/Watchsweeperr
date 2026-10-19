@@ -1,6 +1,6 @@
 import express from 'express';
 import { z } from 'zod';
-import type { AppState, ServiceConfig, ServiceName, Suggestion } from '../shared.js';
+import type { AppState, HiddenCounts, ServiceConfig, ServiceName, Suggestion } from '../shared.js';
 import { genreKey } from '../genres.js';
 import { authRoutes, requireSession } from './auth.js';
 import { deleteSeerrRequest, removeMedia, removeSeasonGroup, ServiceApiError, testService } from './apiClients.js';
@@ -16,7 +16,7 @@ const settingsSchema = z.object({
   demoMode: z.boolean(),
   watchThreshold: z.number().int().min(50).max(100),
   retentionMonths: z.number().int().min(0).max(36),
-  retentionDays: z.number().int().min(0).max(365).optional(),
+  retentionDays: z.number().int().min(0).max(1095).optional(),
   excludedUsers: z.array(z.string().trim().min(1).max(80)).max(100).default([]),
   ignoredGenres: z.array(z.string().trim().min(1).max(80)).max(100).default([]),
   automaticRemovalRules: z.array(z.object({
@@ -58,6 +58,19 @@ function filterIgnoredGenres(suggestions: Suggestion[], ignoredGenres: string[])
 
 function filterRecentRequests(suggestions: Suggestion[], months: number, days: number, now = new Date()) {
   return suggestions.filter((suggestion) => suggestion.status === 'ready' || retentionExpired(suggestion.availableSince ?? suggestion.requestedAt, months, now, days));
+}
+
+// Why open requests are missing from the overview, so the page can say so instead of looking incomplete.
+function hiddenCounts(suggestions: Suggestion[], settings: Awaited<ReturnType<typeof getSettings>>): HiddenCounts {
+  const open = suggestions.filter(canManuallyRemove);
+  const afterExcluded = filterExcludedSuggestions(open, settings.excludedUsers);
+  const afterGenres = filterIgnoredGenres(afterExcluded, settings.ignoredGenres);
+  const shown = settings.demoMode ? afterGenres : filterRecentRequests(afterGenres, settings.retentionMonths, settings.retentionDays);
+  return {
+    excludedUsers: open.length - afterExcluded.length,
+    ignoredGenres: afterExcluded.length - afterGenres.length,
+    notYetDue: afterGenres.length - shown.length
+  };
 }
 
 function canManuallyRemove(suggestion: Suggestion): boolean {
@@ -203,7 +216,7 @@ export function createApp() {
       const ignoredSuggestions = state.suggestions.filter((suggestion) => suggestion.status === 'dismissed');
       const eligible = settings.demoMode ? state.suggestions : filterRecentRequests(state.suggestions, settings.retentionMonths, settings.retentionDays);
       const suggestions = filterIgnoredGenres(filterExcludedSuggestions(eligible, settings.excludedUsers), settings.ignoredGenres);
-      response.json({ ...state, suggestions, ignoredSuggestions, demoMode: settings.demoMode, servicesConfigured });
+      response.json({ ...state, suggestions, ignoredSuggestions, hidden: hiddenCounts(state.suggestions, settings), demoMode: settings.demoMode, servicesConfigured });
     } catch (error) { next(error); }
   });
 
@@ -323,4 +336,4 @@ export function createApp() {
   return app;
 }
 
-export const testing = { applyIgnoredSuggestions, filterExcludedSuggestions, filterIgnoredGenres, filterRecentRequests, canManuallyRemove, groupSuggestionsForRemoval, restoreIgnoredSuggestion, markRequestRemoved };
+export const testing = { hiddenCounts, applyIgnoredSuggestions, filterExcludedSuggestions, filterIgnoredGenres, filterRecentRequests, canManuallyRemove, groupSuggestionsForRemoval, restoreIgnoredSuggestion, markRequestRemoved };

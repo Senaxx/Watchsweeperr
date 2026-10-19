@@ -1,4 +1,4 @@
-import { Eye, EyeOff, Film, Plus, RefreshCw, RotateCcw, Server, Settings as SettingsIcon, ShieldCheck, Tag, Trash2, Tv, Unplug, UserMinus, X } from 'lucide-react';
+import { Eye, EyeOff, Film, Languages, Plus, RefreshCw, RotateCcw, Server, Settings as SettingsIcon, ShieldCheck, Tag, Trash2, Tv, Unplug, UserMinus, UserRound, X } from 'lucide-react';
 import { type Dispatch, type FormEvent, type ReactNode, type SetStateAction, useMemo, useState } from 'react';
 import { localizeGenre } from '../../genres';
 import type { AutomaticRemovalRule, Language, Overview, PublicSettings, ServiceName, Suggestion } from '../../shared';
@@ -25,13 +25,14 @@ interface SettingsProps {
   restoreIgnored: (item: Suggestion) => void;
   busy: boolean;
   language: Language;
+  unsaved: boolean;
   username: string;
   updateAccount: (input: AccountUpdate) => Promise<boolean>;
 }
 
 const clamp = (value: string, max: number) => Math.min(max, Math.max(0, Math.trunc(Number(value) || 0)));
 
-export function Settings({ overview, settings, setSettings, drafts, setDrafts, tests, testConnection, save, restoreIgnored, busy, language, username, updateAccount }: SettingsProps) {
+export function Settings({ overview, settings, setSettings, drafts, setDrafts, tests, testConnection, save, restoreIgnored, busy, language, unsaved, username, updateAccount }: SettingsProps) {
   const t = translator(language);
   const [visibleKeys, setVisibleKeys] = useState<Record<ServiceName, boolean>>({ seerr: false, tautulli: false, radarr: false, sonarr: false });
   const [userInput, setUserInput] = useState('');
@@ -100,6 +101,30 @@ export function Settings({ overview, settings, setSettings, drafts, setDrafts, t
 
       <section className="settings-layout reveal delay-1">
         <div className="settings-main">
+          <div className="settings-title">
+            <h2>{t('general')}</h2>
+            <p>{t('generalDescription')}</p>
+          </div>
+          <div className="service-cards">
+            <article className="service-card">
+              <div className="service-card-head">
+                <div className="service-logo"><Languages size={17} /></div>
+                <div>
+                  <h3>{t('language')}</h3>
+                  <p>{t('languageDescription')}</p>
+                </div>
+              </div>
+              <label className="auth-field">
+                <span>{t('language')}</span>
+                <select value={settings.language} onChange={(event) => update({ language: event.target.value as Language })}>
+                  <option value="nl">{t('dutch')}</option>
+                  <option value="en">{t('english')}</option>
+                </select>
+              </label>
+            </article>
+            <AccountForm username={username} updateAccount={updateAccount} busy={busy} language={language} />
+          </div>
+
           <div className="settings-title">
             <h2>{t('services')}</h2>
             <p>{t('baseUrlHelp')}</p>
@@ -249,16 +274,6 @@ export function Settings({ overview, settings, setSettings, drafts, setDrafts, t
           <div className="rules-icon"><ShieldCheck size={22} /></div>
           <h2>{t('safetyRules')}</h2>
           <p>{settings.automaticRemovalRules.length ? t('manualExceptRules') : t('proposalsOnly')}</p>
-          <div className="rule language-rule">
-            <div>
-              <strong>{t('language')}</strong>
-              <span>{t('languageDescription')}</span>
-            </div>
-            <select value={settings.language} onChange={(event) => update({ language: event.target.value as Language })}>
-              <option value="nl">{t('dutch')}</option>
-              <option value="en">{t('english')}</option>
-            </select>
-          </div>
           <div className="rule">
             <div>
               <strong>{t('demoMode')}</strong>
@@ -283,12 +298,16 @@ export function Settings({ overview, settings, setSettings, drafts, setDrafts, t
             </div>
             <div className="cutoff-control">
               <label>
-                <span>{t('months')}</span>
-                <input type="number" min="0" max="36" step="1" value={settings.retentionMonths} onChange={(event) => update({ retentionMonths: clamp(event.target.value, 36) })} />
-              </label>
-              <label>
                 <span>{t('days')}</span>
-                <input type="number" min="0" max="365" step="1" value={settings.retentionDays} onChange={(event) => update({ retentionDays: clamp(event.target.value, 365) })} />
+                {/* Older settings may still hold whole months; shown here as 30 days each and saved as days only. */}
+                <input
+                  type="number"
+                  min="0"
+                  max="1095"
+                  step="1"
+                  value={settings.retentionMonths * 30 + settings.retentionDays}
+                  onChange={(event) => update({ retentionMonths: 0, retentionDays: clamp(event.target.value, 1095) })}
+                />
               </label>
             </div>
           </div>
@@ -300,9 +319,15 @@ export function Settings({ overview, settings, setSettings, drafts, setDrafts, t
             <Server size={14} />
             <span>{t('storageWarning')}</span>
           </div>
-          <AccountForm username={username} updateAccount={updateAccount} busy={busy} language={language} />
         </aside>
       </section>
+
+      {unsaved && (
+        <div className="save-bar" role="status">
+          <span>{t('unsavedChanges')}</span>
+          <button className="primary-button" onClick={save} disabled={busy}>{t(busy ? 'saving' : 'saveChanges')}</button>
+        </div>
+      )}
     </>
   );
 }
@@ -357,10 +382,13 @@ function AccountForm({ username, updateAccount, busy, language }: { username: st
   }
 
   return (
-    <form className="account-box" onSubmit={submit}>
-      <div>
-        <strong>{t('account')}</strong>
-        <span>{t('accountDescription')}</span>
+    <form className="service-card account-form" onSubmit={submit}>
+      <div className="service-card-head">
+        <div className="service-logo"><UserRound size={17} /></div>
+        <div>
+          <h3>{t('account')}</h3>
+          <p>{t('accountDescription')}</p>
+        </div>
       </div>
       <label className="auth-field">
         <span>{t('username')}</span>
