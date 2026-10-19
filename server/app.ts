@@ -60,16 +60,19 @@ function filterRecentRequests(suggestions: Suggestion[], months: number, days: n
   return suggestions.filter((suggestion) => suggestion.status === 'ready' || retentionExpired(suggestion.availableSince ?? suggestion.requestedAt, months, now, days));
 }
 
-// Why open requests are missing from the overview, so the page can say so instead of looking incomplete.
-function hiddenCounts(suggestions: Suggestion[], settings: Awaited<ReturnType<typeof getSettings>>): HiddenCounts {
-  const open = suggestions.filter(canManuallyRemove);
-  const afterExcluded = filterExcludedSuggestions(open, settings.excludedUsers);
+// Filters the overview list and counts the open requests each filter hides, so the page can say what is missing.
+function visibleSuggestions(suggestions: Suggestion[], settings: Awaited<ReturnType<typeof getSettings>>): { suggestions: Suggestion[]; hidden: HiddenCounts } {
+  const afterExcluded = filterExcludedSuggestions(suggestions, settings.excludedUsers);
   const afterGenres = filterIgnoredGenres(afterExcluded, settings.ignoredGenres);
   const shown = settings.demoMode ? afterGenres : filterRecentRequests(afterGenres, settings.retentionMonths, settings.retentionDays);
+  const open = (items: Suggestion[]) => items.filter(canManuallyRemove).length;
   return {
-    excludedUsers: open.length - afterExcluded.length,
-    ignoredGenres: afterExcluded.length - afterGenres.length,
-    notYetDue: afterGenres.length - shown.length
+    suggestions: shown,
+    hidden: {
+      excludedUsers: open(suggestions) - open(afterExcluded),
+      ignoredGenres: open(afterExcluded) - open(afterGenres),
+      notYetDue: open(afterGenres) - open(shown)
+    }
   };
 }
 
@@ -214,9 +217,8 @@ export function createApp() {
       const [state, settings] = await Promise.all([getState(), getSettings()]);
       const servicesConfigured = Object.values(settings.services).filter((service) => service.apiKey).length;
       const ignoredSuggestions = state.suggestions.filter((suggestion) => suggestion.status === 'dismissed');
-      const eligible = settings.demoMode ? state.suggestions : filterRecentRequests(state.suggestions, settings.retentionMonths, settings.retentionDays);
-      const suggestions = filterIgnoredGenres(filterExcludedSuggestions(eligible, settings.excludedUsers), settings.ignoredGenres);
-      response.json({ ...state, suggestions, ignoredSuggestions, hidden: hiddenCounts(state.suggestions, settings), demoMode: settings.demoMode, servicesConfigured });
+      const { suggestions, hidden } = visibleSuggestions(state.suggestions, settings);
+      response.json({ ...state, suggestions, ignoredSuggestions, hidden, demoMode: settings.demoMode, servicesConfigured });
     } catch (error) { next(error); }
   });
 
@@ -336,4 +338,4 @@ export function createApp() {
   return app;
 }
 
-export const testing = { hiddenCounts, applyIgnoredSuggestions, filterExcludedSuggestions, filterIgnoredGenres, filterRecentRequests, canManuallyRemove, groupSuggestionsForRemoval, restoreIgnoredSuggestion, markRequestRemoved };
+export const testing = { visibleSuggestions, applyIgnoredSuggestions, filterExcludedSuggestions, filterIgnoredGenres, filterRecentRequests, canManuallyRemove, groupSuggestionsForRemoval, restoreIgnoredSuggestion, markRequestRemoved };

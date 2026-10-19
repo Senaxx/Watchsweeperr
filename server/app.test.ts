@@ -78,7 +78,7 @@ describe('genegeerde voorstellen', () => {
   it('telt verborgen open verzoeken per reden, zonder genegeerde of getoonde items', () => {
     const settings = {
       demoMode: false, excludedUsers: ['senaxx'], ignoredGenres: ['Horror'], retentionMonths: 0, retentionDays: 30
-    } as unknown as Parameters<typeof testing.hiddenCounts>[1];
+    } as unknown as Parameters<typeof testing.visibleSuggestions>[1];
     const old = '2026-01-01T00:00:00Z';
     const recent = new Date().toISOString();
     const suggestions = [
@@ -88,8 +88,10 @@ describe('genegeerde voorstellen', () => {
       { ...suggestion, id: 'shown-ready', status: 'ready' as const, requestedAt: recent },
       { ...suggestion, id: 'ignored', status: 'dismissed' as const, requester: 'Senaxx', requestedAt: old }
     ];
-    expect(testing.hiddenCounts(suggestions, settings)).toEqual({ excludedUsers: 1, ignoredGenres: 1, notYetDue: 1 });
-    expect(testing.hiddenCounts(suggestions, { ...settings, demoMode: true })).toEqual({ excludedUsers: 1, ignoredGenres: 1, notYetDue: 0 });
+    const live = testing.visibleSuggestions(suggestions, settings);
+    expect(live.hidden).toEqual({ excludedUsers: 1, ignoredGenres: 1, notYetDue: 1 });
+    expect(live.suggestions.map((item) => item.id)).toEqual(['shown-ready']);
+    expect(testing.visibleSuggestions(suggestions, { ...settings, demoMode: true }).hidden).toEqual({ excludedUsers: 1, ignoredGenres: 1, notYetDue: 0 });
   });
 
   it('rekent de bewaartermijn vanaf beschikbaarheid, niet vanaf de oude aanvraag', () => {
