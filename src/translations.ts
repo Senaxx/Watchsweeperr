@@ -1,6 +1,7 @@
 // Interface text per language. Both languages share the same keys; {name} placeholders are filled by t().
 export const translations = {
   nl: {
+    openService: '{name} openen',
     servicesSummary: '{configured} ingesteld, {working} werkt',
     testAll: 'Alles testen',
     service: 'Service',
@@ -196,6 +197,7 @@ export const translations = {
     daysAgo: '{count} dagen geleden'
   },
   en: {
+    openService: 'Open {name}',
     servicesSummary: '{configured} configured, {working} working',
     testAll: 'Test all',
     service: 'Service',

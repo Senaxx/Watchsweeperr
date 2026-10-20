@@ -284,14 +284,22 @@ export function App() {
         <div className="sidebar-section-label">SERVICES</div>
         <div className="service-list">
           {serviceNames.map((name) => (
-            <div className="service-mini" key={name}>
+            // Without a URL the anchor has no href, so it stays plain text.
+            <a
+              className="service-mini"
+              key={name}
+              href={settings?.services[name].url || undefined}
+              target="_blank"
+              rel="noreferrer"
+              title={settings?.services[name].url ? t('openService', { name: services[name].label }) : undefined}
+            >
               <img className="service-mini-logo" src={services[name].logo} alt="" />
               <div>
                 <strong>{services[name].label}</strong>
                 <small>{t(services[name].roleKey)}</small>
               </div>
               <span className={`connection-dot ${settings?.services[name].configured ? 'online' : ''}`} />
-            </div>
+            </a>
           ))}
         </div>
         <div className="sidebar-foot">
