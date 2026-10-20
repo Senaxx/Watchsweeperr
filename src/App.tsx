@@ -358,6 +358,7 @@ export function App() {
               testConnection={testConnection}
               save={save}
               restoreIgnored={restore}
+              discard={() => { if (savedSettings) { setSettings(savedSettings); setDrafts(draftsFrom(savedSettings)); } }}
               busy={busy}
               language={language}
               unsaved={unsaved}

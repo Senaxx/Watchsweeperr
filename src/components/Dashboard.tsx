@@ -1,7 +1,7 @@
 import { Archive, Check, ChevronRight, ExternalLink, Eye, EyeOff, Film, Gauge, RefreshCw, Search, Server, Tag, Trash2, Tv } from 'lucide-react';
 import { type Dispatch, type ReactNode, type SetStateAction, useMemo, useState } from 'react';
 import type { Language, Overview, ServerStatistics, Suggestion, SuggestionStatus } from '../../shared';
-import { formatBytes, formatDate, formatDateTime, formatNumber, formatRelative, statusLabel, suggestionGenres, totalSize } from '../format';
+import { formatBytes, formatDate, formatDateTime, formatNumber, formatRelative, suggestionGenres, totalSize } from '../format';
 import { serverText, translator } from '../i18n';
 
 type SortOrder = 'requested-desc' | 'requested-asc' | 'title' | 'requester' | 'genre' | 'progress-desc';
@@ -211,7 +211,6 @@ function StatusTable({ title, description, status, items, onRemove, onDismiss, s
           <span>{t('watchStatus')}</span>
           <span>{t('lastTime')}</span>
           <span>{t('fileSize')}</span>
-          <span>{t('status')}</span>
           <span>{t('actions')}</span>
         </div>
         {sorted.length ? sorted.map((item) => (
@@ -274,9 +273,8 @@ function SuggestionRow({ item, onRemove, onDismiss, selected, onToggle, seerrBas
       </div>
       <div className="date-cell">{formatDateTime(item.lastWatchedAt, language)}</div>
       <div className="size-cell">{formatBytes(item.fileSizeBytes, language)}</div>
-      <div className="status-cell"><span className={`status-pill ${item.status}`}><i />{statusLabel(item.status, language)}</span></div>
       <div className="row-actions">
-        <button className="ignore-button" onClick={() => onDismiss(item)}><EyeOff size={13} /><span>{t('ignore')}</span></button>
+        <button className="ignore-button" aria-label={t('ignore')} onClick={() => onDismiss(item)}><EyeOff size={15} /></button>
         {['ready', 'waiting', 'partial'].includes(item.status) && (
           <button className="danger-icon" aria-label={removeLabel} title={removeLabel} onClick={() => onRemove(item)}><Trash2 size={16} /></button>
         )}
