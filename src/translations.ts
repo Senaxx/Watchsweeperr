@@ -1,6 +1,12 @@
 // Interface text per language. Both languages share the same keys; {name} placeholders are filled by t().
 export const translations = {
   nl: {
+    appearance: 'Weergave',
+    mode: 'Modus',
+    light: 'Licht',
+    dark: 'Donker',
+    system: 'Systeem',
+    theme: 'Thema',
     hiddenSummary: '{count} verborgen:',
     hiddenExcluded: '{count} door uitgesloten aanvragers',
     hiddenGenres: '{count} door genegeerde genres',
@@ -19,7 +25,6 @@ export const translations = {
     automaticRulesActive: 'Automatische regels actief',
     manualReviewActive: 'Handmatige controle actief',
     demoMode: 'Demomodus',
-    liveMode: 'Live modus',
     loadError: 'App kon niet worden geladen.',
     demoScanComplete: 'Demoscan voltooid.',
     syncComplete: 'Verzoeken en kijkhistorie gesynchroniseerd.',
@@ -202,6 +207,12 @@ export const translations = {
     daysAgo: '{count} dagen geleden'
   },
   en: {
+    appearance: 'Appearance',
+    mode: 'Mode',
+    light: 'Light',
+    dark: 'Dark',
+    system: 'System',
+    theme: 'Theme',
     hiddenSummary: '{count} hidden:',
     hiddenExcluded: '{count} by excluded requesters',
     hiddenGenres: '{count} by ignored genres',
@@ -220,7 +231,6 @@ export const translations = {
     automaticRulesActive: 'Automatic rules active',
     manualReviewActive: 'Manual review active',
     demoMode: 'Demo mode',
-    liveMode: 'Live mode',
     loadError: 'App could not be loaded.',
     demoScanComplete: 'Demo scan completed.',
     syncComplete: 'Requests and watch history synchronized.',

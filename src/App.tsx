@@ -6,6 +6,7 @@ import { Dashboard } from './components/Dashboard';
 import { BulkRemoveDialog, RemoveDialog } from './components/Dialogs';
 import { Login } from './components/Login';
 import { type AccountUpdate, Settings } from './components/Settings';
+import { ThemeMenu } from './components/ThemeMenu';
 import { api, serviceNames, services, SIGNED_OUT_EVENT, suggestionGenres } from './format';
 import { serverText, translator } from './i18n';
 
@@ -310,10 +311,7 @@ export function App() {
             <ChevronRight size={13} />
             <strong>{t(pageTitleKeys[page])}</strong>
           </div>
-          <div className="topbar-status">
-            <span className={`pulse ${overview?.demoMode ? 'demo' : ''}`} />
-            {overview?.demoMode ? t('demoMode') : t('liveMode')}
-          </div>
+          <ThemeMenu language={language} />
         </header>
 
         <div className="content">
